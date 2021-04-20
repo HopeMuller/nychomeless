@@ -5,17 +5,18 @@ library(foreach)
 library(lubridate)
 
 # setwd to doe folder
+setwd("~/RANYCS/sasdata/development/kmt")
 
 # load in all data
+raw.nsc <- read_csv('nsc_all.csv')
+nsc <- raw.nsc
+
 raw.student <- foreach(year=2013:2019, .combine='rbind.fill') %do% {
   filename <- paste0('student_',year, '.csv')
   this.data <- read_csv(filename)
   this.data
 }
 doe.full <- raw.student
-
-raw.nsc <- read_csv('nsc_all.csv')
-nsc <- raw.nsc
 
 # clean the data
 doe.full <- doe.full %>%
@@ -41,21 +42,91 @@ doe.full <- doe.full %>%
                 sus = SUSTOT,
                 sus.days = SUSTOTDAYS,
                 ela = ELASSC,
-                mth = MTHSSC)
-doe.full <- doe.full %>%
+                mth = MTHSSC) %>%
   # change grade to numeric
   mutate(grade = as.numeric(grade),
          ela = as.numeric(ela),
-         mth = as.numeric(mth)) %>%
+         mth = as.numeric(mth),
+         # recode gender male as 0
+         gen = ifelse(gen == 2, 0, 1)) %>%
   # filter out grade 8 and above
-  filter(grade >= 8) %>%
-  # add a count column for how many rows each student has
+  filter(grade >= 8)
+
+# status for each year and "any" flags
+doe.full <- doe.full %>% 
+  group_by(id) %>% 
+  mutate(gr9.status.fall = ifelse(grade == 9, status.fall, NA),
+         gr9.status.fall = ifelse(grade == 9, status.spr, NA),
+         gr10.status.fall = ifelse(grade == 10, status.fall, NA),
+         gr10.status.fall = ifelse(grade == 10, status.spr, NA),
+         gr11.status.fall = ifelse(grade == 11, status.fall, NA),
+         gr11.status.fall = ifelse(grade == 11, status.spr, NA),
+         gr12.status.fall = ifelse(grade == 12, status.fall, NA),
+         gr12.status.fall = ifelse(grade == 12, status.spr, NA),
+         any.pov = as.numeric(pov > 0),
+         any.hmls = as.numeric(hmls > 0),
+         any.shlt = as.numeric(shlt > 0),
+         any.iep = as.numeric(iep > 0),
+         any.ell = as.numeric(ell > 0),
+         any.shlt = ifelse(is.na(any.shlt) == T, 0, any.shlt)
+         )
+# sum up absences and suspensions
+doe.full <- doe.full %>% 
+  group_by(id) %>% 
+  dplyr::summarise(tot.abs = sum(abs,na.rm=T),
+                   tot.sus = sum(sus,na.rm=T),
+                   tot.sus.days = sum(sus.days,na.rm=T)) %>% 
+  ungroup() %>% 
+  right_join(doe.full)
+
+# clean up columns
+doe.full <- doe.full %>% 
+  select(-pov, -hmls, -shlt, -iep, -ell, -status.fall, -status.spr, -abs, -sus, -sus.days)
+
+
+# indicate flag if student ever repeated a grade
+doe.full <- doe.full %>% 
+  add_count(id) %>%
+  group_by(id) %>%
+  arrange(id) %>%
+  mutate(any.repeats = case_when(n > 1 & (n_distinct(year) != n_distinct(grade)) ~ 1, 
+                             n == 1 | (n_distinct(year) == n_distinct(grade)) ~ 0)) %>% 
+  select(-n)
+
+# count number of schools, report final school
+doe.full <- doe.full %>% 
+  group_by(id) %>% 
+  mutate(total.sch = n_distinct(c(sch.fall, sch.spr)))
+  
+# checkpoint, for troubleshooting
+backup <- doe.full
+doe.full <- backup
+
+
+#######################################
+# THINGS THAT AREN'T WORKING PROPERLY #
+#######################################
+
+# math and ela scores then remove 8th grade 
+doe.full <- doe.full %>% 
+  group_by(id) %>% 
+  dplyr::summarise(gr8.ela = tail(ela),
+                   gr8.mth = tail(mth)) %>% 
+  ungroup() %>% 
+  right_join(doe.full)
+# remove grade 8 rows
+doe.full <- doe.full %>% 
+  filter(grade > 8)
+
+
+# create column to flag students who repeated grades or may be entered multiple times
+
+# add a count column for how many rows each student has
+doe.full <- doe.full %>% 
   add_count(id) %>%
   group_by(id) %>%
   arrange(id) %>%
   mutate(
-    # recode gender male as 0
-    gen = ifelse(gen == 2, 0, 1),
     # identify students that have no school ids listed
     noschool = case_when(is.na(sch.fall) & is.na(sch.spr) ~ 1),
     # parse birth year to new column
@@ -68,55 +139,3 @@ doe.full <- doe.full %>%
     mvd = case_when(sch.fall != sch.spr ~ 1,
                     sch.fall == sch.spr ~ 0),
   )
-
-# create column to flag students who repeated grades or may be entered multiple times
-doe.full <- doe.full %>% 
-  mutate(repeats = case_when(n > 1 & (n_distinct(year) != n_distinct(grade)) ~ 1, 
-                             n == 1 | (n_distinct(year) == n_distinct(grade)) ~ 0))
-
-# add any flags
-doe.full <- doe.full %>% 
-  group_by(id) %>% 
-  mutate(any.pov = as.numeric(pov > 0),
-         any.hmls = as.numeric(hmls > 0),
-         any.shlt = as.numeric(shlt > 0),
-         any.iep = as.numeric(iep > 0),
-         any.ell = as.numeric(ell > 0),
-         )
-# sum up absences and suspensions
-doe.full <- doe.full %>% 
-  group_by(id) %>% 
-  dplyr::summarise(tot.abs = sum(abs,na.rm=T),
-                   tot.sus = sum(sus,na.rm=T),
-                   tot.sus.days = sum(sus.days,na.rm=T),
-                   gr8.mth = mth,
-                   gr8.ela = ela) %>% 
-  ungroup() %>% 
-  right_join(doe.full)
-
-# 
-# add grade 8 scores to rows for all high school years
-# subset grade 8 rows with math or ela scores
-# doe.88 <- doe.full %>%
-#   group_by(id) %>%
-#   mutate(gr8.ela = case_when(grade == 8 ~ ela)) %>%
-#   mutate(grade8.ela = case_when(grade != 8 ~ sum(gr8.ela)))
-# 
-# doe.8 <- doe.full %>%
-#   filter(grade == 8) %>%
-#   filter(!is.na(ela | mth)) %>%
-#   select(id, ela, mth)
-# 
-# # create a row for grade 8 math and ela scores
-# doe.full$gr8.ela <- NULL
-# doe.full$gr8.mth <- NULL
-# 
-# # fill main data frame with grade 8 math and ela scores for occurences where they exist
-# ids <- unique(doe.8$id)
-# for (i in seq_along(ids)){
-#   i = "i"
-#   ela <- doe.8$ela[doe.8$id == i]
-#   mth <- doe.8$mth[doe.8$id == i]
-#   doe.full$gr8.ela[doe.full$id == i] <- ela
-#   doe.full$gr8.mth[doe.full$id == i] <- mth
-# }
