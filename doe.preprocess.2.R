@@ -1,3 +1,6 @@
+# data questions to find answers:
+# why do 69 kids have more suspended days than school days? Is it cumaltive over school career?
+
 # load libraries
 library(plyr)
 library(tidyverse)
@@ -6,6 +9,7 @@ library(lubridate)
 
 # setwd to doe folder
 # Kenny: setwd("~/RANYCS/sasdata/development/kmt")
+# Hope: setwd("/Users/Home/mnt/sasdata/development/kmt")
 
 # load in data
 raw.nsc <- read_csv('nsc_all.csv')
@@ -16,6 +20,7 @@ raw.student <- foreach(year=2013:2019, .combine='rbind.fill') %do% {
   this.data <- read_csv(filename)
   this.data
 }
+
 doe.full <- raw.student
 
 # clean the data
@@ -44,9 +49,12 @@ doe.full <- doe.full %>%
                 sus.days = SUSTOTDAYS,
                 ela = ELASSC,
                 mth = MTHSSC) %>%
-  
-  # change grade to numeric
-  mutate(grade = as.numeric(grade),
+ 
+  #subset data to grade levels used
+  filter(grade == "08" | grade == "09" | grade == "10" | grade == "11" | grade == "12")
+
+  # change grade and scores to numeric values
+   mutate(grade = as.numeric(grade),
          ela = as.numeric(ela),
          mth = as.numeric(mth),
          # recode gender male as 0
@@ -54,12 +62,9 @@ doe.full <- doe.full %>%
          # code percentage days absent per year and percent days suspended per year
          per.abs = abs/180,
          per.sus = sus.days/180) %>%
-  
-  # filter out above grade 8
-  filter(grade >= 8)
 
 # filter out students who were not going to graduate by 2019
-doe.full <- doe.full %>%
+  doe.full <- doe.full %>%
   filter(!(grade < 12 & year = 2019) |
            (grade < 11 & year == 2018) |
            (grade < 10 & year == 2017))
