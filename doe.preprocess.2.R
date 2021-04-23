@@ -1,5 +1,8 @@
-# data questions to find answers:
+# cleaning questions to find answers to:
 # why do 69 kids have more suspended days than school days? Is it cumaltive over school career?
+# some kids are listed as starting high school at age 10? they attend 75K721, a school 
+# for children with severe learning disabilities.
+# should we remove schools that start with 75??
 
 # load libraries
 library(plyr)
@@ -12,15 +15,18 @@ library(lubridate)
 # Hope: setwd("/Users/Home/mnt/sasdata/development/kmt")
 
 # load in data
+# nsc college attendance data
 raw.nsc <- read_csv('nsc_all.csv')
 nsc <- raw.nsc
 
+# doe data
 raw.student <- foreach(year=2013:2019, .combine='rbind.fill') %do% {
   filename <- paste0('student_',year, '.csv')
   this.data <- read_csv(filename)
   this.data
 }
 
+# assign data to new name
 doe.full <- raw.student
 
 # clean the data
@@ -50,38 +56,37 @@ doe.full <- doe.full %>%
                 ela = ELASSC,
                 mth = MTHSSC) %>%
  
-  #subset data to grade levels used
+  # subset data to grade levels used
   filter(grade == "08" | grade == "09" | grade == "10" | grade == "11" | grade == "12")
 
   # change grade and scores to numeric values
-   mutate(grade = as.numeric(grade),
+  mutate(grade = as.numeric(grade),
          ela = as.numeric(ela),
          mth = as.numeric(mth),
          # recode gender male as 0
          gen = ifelse(gen == 2, 0, 1),
          # code percentage days absent per year and percent days suspended per year
-         per.abs = abs/180,
-         per.sus = sus.days/180) %>%
+         per.abs = abs/182,
+         per.sus = sus.days/182) %>%
 
-# filter out students who were not going to graduate by 2019
-  doe.full <- doe.full %>%
-  filter(!(grade < 12 & year = 2019) |
+  # filter out students who were not going to graduate by 2019
+  filter(!(grade < 12 & year == 2019) |
            (grade < 11 & year == 2018) |
-           (grade < 10 & year == 2017))
+           (grade < 10 & year == 2017)) %>%
           
-# parse birth year to new column
-doe.full <- doe.full %>%
-  mutate(birth.yr = year(mdy(dob)))
+  # parse birth year to new column
+  mutate(birth.yr = year(mdy(dob))) %>%
 
-# create column to show if they moved mid-year
-doe.full <- doe.full %>%
+  # create column to show if they moved mid-year
   mutate(mvd.mid = case_when(sch.fall != sch.spr ~ 1,
-                         sch.fall == sch.spr ~ 0))
+                             sch.fall == sch.spr ~ 0))
 
-# add total school count
+# add total count of schools each student attended
 doe.full <- doe.full %>%
-  group_by(id)%>%
-  dplyr::summarise(num.schools = n_distinct(sch.fall))
+  group_by(id) %>%
+  dplyr::summarise(num.schools = n_distinct(interaction(sch.fall, sch.spr))) %>%
+  ungroup() %>% 
+  right_join(doe.full)
 
 # status for each year and "any" flags
 doe.full <- doe.full %>% 
@@ -114,20 +119,37 @@ doe.full <- doe.full %>%
   ungroup() %>% 
   right_join(doe.full)
 
+#### add 8th grade ela and math scores here if we want them
+
+# remove grade 8 rows
+doe.full <- doe.full %>% 
+  filter(grade > 8)
+
+# column for grades completed with NYC DOE
+doe.full <- doe.full %>%
+  group_by(id) %>%
+  dplyr::summarise(comp.grades = n_distinct(grade)) %>%
+  ungroup() %>% 
+  right_join(doe.full)
+
 # create column for freshman year, this needs editing due to the repeated rows for people's 9th grade year
 doe.full <- doe.full %>%
-  mutate(frsh = case_when(grade == 9 ~ year - 1))
-
+  group_by(id) %>%
+  mutate(frsh = case_when(grade == 9 ~ year - 1),
+         frsh = min(year)) %>%
+  ungroup() %>% 
+  right_join(doe.full)
+  
 # create column of age difference between NYC mandated school-age entry and grade 9-age entry
 doe.full <- doe.full %>%
   mutate(age.diff = frsh - birth.yr - 14)
 
-# clean up columns
+# clean up columns, not deleting sus.days yet until we discuss question around why so many?
 doe.full <- doe.full %>% 
-  select(-pov, -hmls, -shlt, -iep, -ell, -status.fall, -status.spr, -abs, -sus, -sus.days)
+  select(-pov, -hmls, -shlt, -iep, -ell, -status.fall, -status.spr, -abs, -sus)
 
 # indicate flag if student ever repeated a grade
-doe.full <- doe.full %>% 
+doe.f <- doe.full %>% 
   add_count(id) %>%
   group_by(id) %>%
   arrange(id) %>%
@@ -135,10 +157,9 @@ doe.full <- doe.full %>%
                              n == 1 | (n_distinct(year) == n_distinct(grade)) ~ 0)) %>% 
   select(-n)
 
-# count number of schools, report final school
+# report final school
 doe.full <- doe.full %>% 
-  group_by(id) %>% 
-  mutate(total.sch = n_distinct(c(sch.fall, sch.spr)))
+
   
 # checkpoint, for troubleshooting
 backup <- doe.full
@@ -150,14 +171,12 @@ doe.full <- backup
 #######################################
 
 # math and ela scores then remove 8th grade 
-doe.full <- doe.full %>% 
+doe.f <- doe.full %>% 
   group_by(id) %>% 
-  dplyr::summarise(gr8.ela = tail(ela),
-                   gr8.mth = tail(mth)) %>% 
-  ungroup() %>% 
+  mutate(gr8.ela = case_when(grade == 8 ~ ela)) %>%
+  mutate(grade8.ela = case_when(grade != 8 ~ gr8.ela))
+ungroup() %>% 
   right_join(doe.full)
 
-# remove grade 8 rows
-doe.full <- doe.full %>% 
-  filter(grade > 8)
+
 
