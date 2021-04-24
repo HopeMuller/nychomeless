@@ -1,14 +1,3 @@
-# cleaning questions to find answers to:
-# are we eliminating kids that didn't attend 9th, 10th, etc. at NYC DOE?
-
-# why do 69 kids have more suspended days than school days? Is it cumaltive over school career?
-
-# birth years/dates column is problematic for 308 students who have birth years prior to 1992
-# length(unique(doe.full$id[which(doe.full$birth.yr < 1992)]))
-
-# kids are listed as starting high school at age 12? they attend 75K721, a school 
-# for children with severe learning disabilities.
-
 # load libraries
 library(plyr)
 library(tidyverse)
@@ -31,10 +20,17 @@ raw.student <- foreach(year=2013:2019, .combine='rbind.fill') %do% {
   this.data
 }
 
-# assign data to new name
+# assign student-level data to new name
 doe.full <- raw.student
 
-# clean the data
+# read in school-level data
+# Hope: sch.doe <- read.csv("/Users/Home/Documents/MessyData/finalproj/DOE_schooldata.csv")
+
+# rename school column for merging
+sch.doe <- sch.doe %>%
+  rename(final.sch = DBN)
+
+# clean the student-level data
 doe.full <- doe.full %>%
   
   # rename columns
@@ -131,17 +127,22 @@ doe.full <- doe.full %>%
   ungroup() %>% 
   right_join(doe.full)
 
-# create column for freshman year, this needs editing
-# doe.full <- doe.full %>%
-#   group_by(id) %>%
-#   mutate(frsh = case_when(grade == 9 ~ year - 1),
-#          frsh = min(year)) %>%
-#   ungroup() %>% 
-#   right_join(doe.full)
+# filter out students who were not at DOE for grade 9
+doe.full <- doe.full %>%
+  group_by(id) %>%
+  filter(!(min(grade) > 9 & comp.grades >= 1 & comp.grades <= 3))
+
+# create column for freshman year
+doe.full <- doe.full %>%
+  group_by(id) %>%
+  mutate(frsh = case_when(grade == 9 ~ year - 1),
+         frsh = min(year)) %>%
+  ungroup() %>%
+  right_join(doe.full)
 
 # create column of age difference between NYC mandated school-age entry and grade 9-age entry
-# doe.full <- doe.full %>%
-#   mutate(age.diff = frsh - birth.yr - 14)
+doe.full <- doe.full %>%
+  mutate(age.diff = frsh - birth.yr - 14)
 
 # report final school attended
 doe.full <- doe.full %>%
@@ -152,18 +153,26 @@ doe.full <- doe.full %>%
   select(-year) %>%
   right_join(doe.full)
 
-# clean up columns, not deleting sus.days yet until we discuss question around why so many?
-doe.full <- doe.full %>% 
-  select(-pov, -hmls, -shlt, -iep, -ell, -status.fall, -status.spr, -abs, -sus)
-
 # indicate flag if student ever repeated a grade
-doe.f <- doe.full %>% 
+doe.full <- doe.full %>% 
   add_count(id) %>%
   group_by(id) %>%
   arrange(id) %>%
   mutate(any.repeats = case_when(n > 1 & (n_distinct(year) != n_distinct(grade)) ~ 1, 
                                  n == 1 | (n_distinct(year) == n_distinct(grade)) ~ 0)) %>% 
   select(-n)
+
+# change all NaN values to NAs, this doesn't work
+# doe.full[is.nan(doe.full)] <- NA
+
+# clean up columns, not deleting sus.days yet until we discuss question around why so many?
+doe.full <- doe.full %>% 
+  select(-pov, -hmls, -shlt, -iep, -ell, -status.fall, -status.spr, -abs, -sus, -dob, 
+         -sch.fall, -sch.spr, -frsh, -birth.yr)
+
+# add school level columns
+doe.all <- doe.full %>%
+  left_join(sch.doe)
 
 # checkpoint, for troubleshooting
 backup <- doe.full
