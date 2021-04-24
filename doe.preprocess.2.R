@@ -3,6 +3,9 @@
 
 # why do 69 kids have more suspended days than school days? Is it cumaltive over school career?
 
+# birth years/dates column is problematic for 308 students who have birth years prior to 1992
+# length(unique(doe.full$id[which(doe.full$birth.yr < 1992)]))
+
 # kids are listed as starting high school at age 12? they attend 75K721, a school 
 # for children with severe learning disabilities.
 
@@ -55,21 +58,21 @@ doe.full <- doe.full %>%
                 abs = ABSTOT,
                 sus = SUSTOT,
                 sus.days = SUSTOTDAYS)
-  
-  # delete ela and math scores, too many are missing
+
+# delete ela and math scores, too many are missing
 doe.full <- doe.full %>%
   select(-ELASSC, - MTHSSC) %>%
   
   # subset data to grade levels used
   filter(grade == "09" | grade == "10" | grade == "11" | grade == "12") %>%
-
+  
   # change grade and scores to numeric values
   mutate(grade = as.numeric(grade),
-       # recode gender male as 0
-       gen = ifelse(gen == 2, 0, 1),
-       # code percentage days absent per year and percent days suspended per year
-       per.abs = abs/182,
-       per.sus = sus.days/182) %>%
+         # recode gender male as 0
+         gen = ifelse(gen == 2, 0, 1),
+         # code percentage days absent per year and percent days suspended per year
+         per.abs = abs/182,
+         per.sus = sus.days/182) %>%
   
   # filter out students who were not going to graduate by 2019
   filter(!(grade < 12 & year == 2019) |
@@ -170,7 +173,6 @@ doe.full <- backup
 #######################################
 # THINGS THAT AREN'T WORKING PROPERLY #
 #######################################
-
 
 
 
