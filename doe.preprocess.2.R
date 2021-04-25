@@ -68,7 +68,9 @@ doe.full <- doe.full %>%
          gen = ifelse(gen == 2, 0, 1),
          # code percentage days absent per year and percent days suspended per year
          per.abs = abs/182,
-         per.sus = sus.days/182) %>%
+         per.sus = sus.days/182, 
+         per.miss = (abs + sus.days)/182) %>%
+  select(-abs, -sus.days) %>%
   
   # filter out students who were not going to graduate by 2019
   filter(!(grade < 12 & year == 2019) |
@@ -80,14 +82,13 @@ doe.full <- doe.full %>%
   
   # create column to show if they moved mid-year
   mutate(mvd.mid = case_when(sch.fall != sch.spr ~ 1,
-                             sch.fall == sch.spr ~ 0))
+                             sch.fall == sch.spr ~ 0)) %>%
 
-# add total count of schools each student attended
-doe.full <- doe.full %>%
-  group_by(id) %>%
-  dplyr::summarise(num.schools = n_distinct(interaction(sch.fall, sch.spr))) %>%
-  ungroup() %>% 
-  right_join(doe.full)
+  # filter out students listed with birthdays prior to 1994
+  filter(birth.yr > 1993) %>%
+  
+  # filter out suspensions listed with more days that school year
+   filter(sus.days < 183)
 
 # status for each year and "any" flags
 doe.full <- doe.full %>% 
@@ -99,40 +100,36 @@ doe.full <- doe.full %>%
          gr11.stat.fall = ifelse(grade == 11, status.fall, NA),
          gr11.stat.spr = ifelse(grade == 11, status.spr, NA),
          gr12.stat.fall = ifelse(grade == 12, status.fall, NA),
-         gr12.stat.spr = ifelse(grade == 12, status.spr, NA),
-         any.pov = as.numeric(pov > 0),
-         any.hmls = as.numeric(hmls > 0),
-         any.shlt = as.numeric(shlt > 0),
-         any.iep = as.numeric(iep > 0),
-         any.ell = as.numeric(ell > 0),
-         any.shlt = ifelse(is.na(any.shlt) == T, 0, any.shlt)
-  )
+         gr12.stat.spr = ifelse(grade == 12, status.spr, NA)) %>%
+  select(-status.fall, -status.spr)
 
-# sum number of days of absences and suspensions, and total suspensions
-# calculate mean percentage of days absent and suspended
-doe.full <- doe.full %>% 
-  group_by(id) %>% 
-  dplyr::summarise(tot.abs = sum(abs, na.rm=T),
-                   av.abs = mean(per.abs, na.rm=T),
-                   tot.sus = sum(sus, na.rm=T),
-                   av.sus = mean(per.sus, na.rm=T),
-                   tot.sus.days = sum(sus.days, na.rm=T)) %>% 
-  ungroup() %>% 
-  right_join(doe.full)
-
-# column for grades completed within NYC DOE
+# column for grades begun within NYC DOE, starting with grade 9
 doe.full <- doe.full %>%
   group_by(id) %>%
   dplyr::summarise(comp.grades = n_distinct(grade)) %>%
   ungroup() %>% 
   right_join(doe.full)
 
-# filter out students who were not at DOE for grade 9
+# create binary graduate column
+doe <- doe.full %>%
+  group_by(id) %>%
+  select(status.fall, status.spr) %>%
+  mutate(grad = case_when((status.fall == 2 | status.spr == 2) ~ 1)
+                          (status.fall == 3 | status.spr == 3) ~ 0) %>%
+  filter(year == 12) %>%
+  select(-year) %>%
+  right_join(doe.full)
+  
+# report final school attended
 doe.full <- doe.full %>%
   group_by(id) %>%
-  filter(!(min(grade) > 9 & comp.grades >= 1 & comp.grades <= 3))
+  select(sch.fall, year) %>%
+  dplyr::rename(final.sch = sch.fall) %>%
+  filter(year == max(year)) %>%
+  select(-year) %>%
+  right_join(doe.full)
 
-# create column for freshman year
+# create column to specify freshman year
 doe.full <- doe.full %>%
   group_by(id) %>%
   mutate(frsh = case_when(grade == 9 ~ year - 1),
@@ -142,18 +139,43 @@ doe.full <- doe.full %>%
 
 # create column of age difference between NYC mandated school-age entry and grade 9-age entry
 doe.full <- doe.full %>%
-  mutate(age.diff = frsh - birth.yr - 14)
+  mutate(age.diff = frsh - birth.yr - 14) %>%
+  select(-frsh, - birth.yr)
 
-# report final school attended
+# take out grades 11 and 12 --------------------------------------------------------------
+doe.full <- doe.full %>%
+  filter(grade < 11)
+
+# add total count of schools each student attended in grade 9 and 10
 doe.full <- doe.full %>%
   group_by(id) %>%
-  select(sch.fall, year) %>%
-  rename(final.sch = sch.fall) %>%
-  filter(year == max(year)) %>%
-  select(-year) %>%
+  dplyr::summarise(num.schools = n_distinct(interaction(sch.fall, sch.spr))) %>%
+  ungroup() %>% 
   right_join(doe.full)
 
-# indicate flag if student ever repeated a grade
+# create if ever summary for shelter, poverty, iep, all
+doe.full <- doe.full %>% 
+  group_by(id) %>% 
+  mutate(any.pov = as.numeric(pov > 0),
+          any.shlt = as.numeric(shlt > 0),
+          any.iep = as.numeric(iep > 0),
+          any.ell = as.numeric(ell > 0),
+          any.shlt = ifelse(is.na(any.shlt) == T, 0, any.shlt)) %>%
+  select(-pov, -shlt, -iep, -ell)
+
+# calculate mean percentage of days absent and suspended
+# average suspensions for each year
+doe.full <- doe.full %>% 
+  group_by(id) %>% 
+  dplyr::summarise(av.abs = mean(per.abs, na.rm=T),
+                   tot.sus = mean(sus, na.rm=T),
+                   av.sus = mean(per.sus, na.rm=T),
+                   av.missed = mean(per.miss, na.rm = T)) %>% 
+  ungroup() %>% 
+  right_join(doe.full) %>%
+  select(-sus)
+
+# indicate flag if student repeated a grade in grades 9 or 10
 doe.full <- doe.full %>% 
   add_count(id) %>%
   group_by(id) %>%
@@ -162,17 +184,26 @@ doe.full <- doe.full %>%
                                  n == 1 | (n_distinct(year) == n_distinct(grade)) ~ 0)) %>% 
   select(-n)
 
+
+# report final school attended, prior to grade 11
+doe.full <- doe.full %>%
+  group_by(id) %>%
+  select(sch.fall, year) %>%
+  dplyr::rename(soph.sch = sch.fall) %>%
+  filter(year == max(year)) %>%
+  select(-year) %>%
+  right_join(doe.full)
+
 # change all NaN values to NAs, this doesn't work
 # doe.full[is.nan(doe.full)] <- NA
 
-# clean up columns, not deleting sus.days yet until we discuss question around why so many?
+# clean up columns
 doe.full <- doe.full %>% 
-  select(-pov, -hmls, -shlt, -iep, -ell, -status.fall, -status.spr, -abs, -sus, -dob, 
-         -sch.fall, -sch.spr, -frsh, -birth.yr)
+  select(-sch.fall, -sch.spr)
 
 # add school level columns
 doe.all <- doe.full %>%
-  left_join(sch.doe)
+  left_join(soph.sch)
 
 # checkpoint, for troubleshooting
 backup <- doe.full
