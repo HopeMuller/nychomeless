@@ -83,12 +83,12 @@ doe.full <- doe.full %>%
   # create column to show if they moved mid-year
   mutate(mvd.mid = case_when(sch.fall != sch.spr ~ 1,
                              sch.fall == sch.spr ~ 0)) %>%
-
+  
   # filter out students listed with birthdays prior to 1994
   filter(birth.yr > 1993) %>%
   
   # filter out suspensions listed with more days that school year
-   filter(sus.days < 183)
+  filter(sus.days < 183)
 
 # status for each year and "any" flags
 doe.full <- doe.full %>% 
@@ -111,15 +111,14 @@ doe.full <- doe.full %>%
   right_join(doe.full)
 
 # create binary graduate column
-doe <- doe.full %>%
+doe.full <- doe.full %>%
   group_by(id) %>%
-  select(status.fall, status.spr) %>%
-  mutate(grad = case_when((status.fall == 2 | status.spr == 2) ~ 1)
-                          (status.fall == 3 | status.spr == 3) ~ 0) %>%
-  filter(year == 12) %>%
-  select(-year) %>%
+  filter(grade == 12) %>%
+  filter(status.spr < 4) %>%
+  mutate(grad = case_when(status.spr == 2 ~ 1,
+                          (status.spr == 1 | status.spr == 3) ~ 0)) %>%
   right_join(doe.full)
-  
+
 # report final school attended
 doe.full <- doe.full %>%
   group_by(id) %>%
@@ -157,10 +156,10 @@ doe.full <- doe.full %>%
 doe.full <- doe.full %>% 
   group_by(id) %>% 
   mutate(any.pov = as.numeric(pov > 0),
-          any.shlt = as.numeric(shlt > 0),
-          any.iep = as.numeric(iep > 0),
-          any.ell = as.numeric(ell > 0),
-          any.shlt = ifelse(is.na(any.shlt) == T, 0, any.shlt)) %>%
+         any.shlt = as.numeric(shlt > 0),
+         any.iep = as.numeric(iep > 0),
+         any.ell = as.numeric(ell > 0),
+         any.shlt = ifelse(is.na(any.shlt) == T, 0, any.shlt)) %>%
   select(-pov, -shlt, -iep, -ell)
 
 # calculate mean percentage of days absent and suspended
@@ -183,7 +182,6 @@ doe.full <- doe.full %>%
   mutate(any.repeats = case_when(n > 1 & (n_distinct(year) != n_distinct(grade)) ~ 1, 
                                  n == 1 | (n_distinct(year) == n_distinct(grade)) ~ 0)) %>% 
   select(-n)
-
 
 # report final school attended, prior to grade 11
 doe.full <- doe.full %>%
@@ -214,5 +212,11 @@ doe.full <- backup
 # THINGS THAT AREN'T WORKING PROPERLY #
 #######################################
 
-
+# include this? create binary dropped out column
+doe.full <- doe.full %>%
+  group_by(id) %>%
+  filter(status.fall != 4 & status.spr != 4) %>%
+  mutate(drp.out = case_when((status.fall == 3 | status.spr == 3) ~ 1,
+                             (status.fall <= 2 | status.spr <= 2) ~ 0)) %>%
+  right_join(doe.full)
 
