@@ -6,7 +6,8 @@ library(lubridate)
 
 # setwd to doe folder
 # Kenny: setwd("~/RANYCS/sasdata/development/kmt")
-# Hope: setwd("/Users/Home/mnt/sasdata/development/kmt")
+# Hope: 
+setwd("/Users/Home/mnt/sasdata/development/kmt")
 
 # load in data
 # nsc college attendance data
@@ -59,7 +60,9 @@ doe.full <- doe.full %>%
   select(-ELASSC, - MTHSSC) %>% 
   # subset data to grade levels used
   filter(grade == "09" | grade == "10" | grade == "11" | grade == "12") %>%
-  # change grade and scores to numeric values
+  # filter out suspensions listed with more days that school year
+  filter(sus.days < 183) %>%
+  # change grades to numeric values
   mutate(grade = as.numeric(grade),
          # recode gender male as 0
          gen = ifelse(gen == 2, 0, 1),
@@ -72,19 +75,47 @@ doe.full <- doe.full %>%
          birth.yr = year(mdy(dob)),
          # create column to show if they moved mid-year
          mvd.mid = case_when(sch.fall != sch.spr ~ 1,
-                             sch.fall == sch.spr ~ 0))
+                             sch.fall == sch.spr ~ 0)) %>%
+   # filter out students listed with birthdays prior to 1994
+   filter(birth.yr > 1993)
 
 # filter out students who were not going to graduate by 2019
 doe.full <- doe.full %>% 
   filter(!(grade < 12 & year == 2019) |
          (grade < 11 & year == 2018) |
          (grade < 10 & year == 2017))
-  
+
+# column for total grades completed within NYC DOE (grades 9 - 12): visualization variable
+doe.full <- doe.full %>%
+  group_by(id) %>%
+  dplyr::summarise(comp.grades = n_distinct(grade)) %>%
+  ungroup() %>% 
+  right_join(doe.full)
+
+# report final school attended (grade 9 - 12): visualization variable
+doe.full <- doe.full %>%
+  group_by(id) %>%
+  select(sch.fall, year) %>%
+  rename(final.sch = sch.fall) %>%
+  filter(year == max(year)) %>%
+  select(-year) %>%
+  right_join(doe.full)
+
+# report final status as of 2019: outcome variable
+doe.full <- doe.full %>% 
+  group_by(id) %>% 
+  dplyr::summarise(final.status = last(status.spr)) %>% 
+  ungroup() %>% 
+  right_join(doe.full)
+
+# take out grades 11 and 12 for predictive variables below -----------------------------------
+doe.full <- doe.full %>%
+  filter(grade < 11)
+
 # add "any" flags
 doe.full <- doe.full %>% 
   group_by(id) %>% 
   mutate(any.pov = as.numeric(pov > 0),
-         any.hmls = as.numeric(hmls > 0),
          any.shlt = as.numeric(shlt > 0),
          any.iep = as.numeric(iep > 0),
          any.ell = as.numeric(ell > 0),
@@ -99,20 +130,13 @@ doe.full <- doe.full %>%
   ungroup() %>% 
   right_join(doe.full)
 
-# sum number of days of absences and suspensions, and total suspensions
-# calculate mean percentage of days absent and suspended
+# calculate mean percentage and total days missed (absent and suspended) 
+# calculate mean number of suspensions per year
 doe.full <- doe.full %>% 
   group_by(id) %>% 
-  dplyr::summarise(tot.missed = sum(missed, na.rm=T),
+  dplyr::summarise(mn.missed = mean(missed, na.rm=T),
                    av.missed = mean(per.missed, na.rm=T),
-                   tot.sus = sum(sus, na.rm=T)) %>% 
-  ungroup() %>% 
-  right_join(doe.full)
-
-# column for grades completed within NYC DOE
-doe.full <- doe.full %>%
-  group_by(id) %>%
-  dplyr::summarise(comp.grades = n_distinct(grade)) %>%
+                   mn.sus = mean(sus, na.rm=T)) %>% 
   ungroup() %>% 
   right_join(doe.full)
 
@@ -128,16 +152,7 @@ doe.full <- doe.full %>%
 doe.full <- doe.full %>%
   mutate(age.diff = frsh - birth.yr - 14)
 
-# report final school attended
-doe.full <- doe.full %>%
-  group_by(id) %>%
-  select(sch.fall, year) %>%
-  rename(final.sch = sch.fall) %>%
-  filter(year == max(year)) %>%
-  select(-year) %>%
-  right_join(doe.full)
-
-# indicate flag if student ever repeated a grade
+# indicate flag if student repeated a grade, in grade 9 or 10
 doe.full <- doe.full %>% 
   add_count(id) %>%
   group_by(id) %>%
@@ -145,13 +160,6 @@ doe.full <- doe.full %>%
   mutate(any.repeats = case_when(n > 1 & (n_distinct(year) != n_distinct(grade)) ~ 1, 
                                  n == 1 | (n_distinct(year) == n_distinct(grade)) ~ 0)) %>% 
   select(-n)
-
-# report final status as of 2019
-doe.full <- doe.full %>% 
-  group_by(id) %>% 
-  dplyr::summarise(final.status = last(status.spr)) %>% 
-  ungroup() %>% 
-  right_join(doe.full)
 
 # change all NaN values in av.missed to 0
 doe.full <- doe.full %>% 
@@ -172,17 +180,11 @@ nsc <- nsc %>%
   dplyr::rename(id = RANYCSID,
                 year = YEAR)
 
-
 # checkpoint, for troubleshooting
 backup <- doe.full
 doe.full <- backup
-
-
 
 # add school level columns and nsc first year college columns
 doe.all <- doe.full %>%
   left_join(sch.doe) %>% 
   left_join(nsc)
-
-
-
