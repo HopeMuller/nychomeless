@@ -66,7 +66,7 @@ doe.full <- doe.full %>%
   # subset data to grade levels used
   filter(grade == "09" | grade == "10" | grade == "11" | grade == "12") %>%
   # filter out suspensions listed with more days that school year
-  filter(sus.days < 183) %>%
+  filter(sus.days < 183 | is.na(sus.days)) %>%
   # change grades to numeric values
   mutate(grade = as.numeric(grade),
          # recode gender male as 0
@@ -184,26 +184,34 @@ doe.full <- doe.full %>%
   select(-year) %>%
   right_join(doe.full)
 
-# change all NaN values in av.missed to 0
-# doe.full <- doe.full %>% 
-#   mutate(av.missed = ifelse(is.na(av.missed) == T, 0, av.missed))
-
 # clean up columns
-doe.full <- doe.full %>% 
+doe.simp <- doe.full %>% 
   select(-pov, -hmls, -shlt, -iep, -ell, -abs, -sus, -sus.days, -missed,
          -per.missed, -dob,-sch.fall, -sch.spr, -status.fall, -status.spr, -frsh, 
          -birth.yr, -mvd.mid)
 
 # collapsing rows, so that there is only one row per student
-doe.full <- doe.full %>% 
+doe.simp <- doe.simp %>% 
   group_by(id) %>% 
   filter(year == max(year))
 
 # checkpoint, for troubleshooting
-backup <- doe.full
-doe.full <- backup
+backup <- doe.simp
+doe.simp <- backup
 
 # add school level columns and nsc first year college columns
-doe.all <- doe.full %>%
+doe.all <- doe.simp %>%
   left_join(sch.doe) %>% 
   left_join(nsc)
+
+# create college column
+doe.all <- doe.all %>%
+  mutate(college = ifelse((NSCSTRSPR > 1 | NSCSTRSPR > 1), 1, 0)) %>%
+
+# filter out students that went to college, but, did not graduate in a NYC DOE school,
+# and did not list their moving with the DOE
+   filter((comp.grades !=2 & college == 1) | is.na(college)) %>%
+   filter(id != "977E041DEE77") %>%
+   filter(id != "6C5ECB1DF612") %>%
+   filter(id != "05396D1EEDC5") %>%
+   filter(id != "046FBDE32012")
