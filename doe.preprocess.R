@@ -6,25 +6,10 @@ library(lubridate)
 
 # setwd to doe folder
 # Kenny: setwd("~/RANYCS/sasdata/development/kmt")
-# Hope: setwd("/Users/Home/mnt/sasdata/development/kmt")
+#Hope: 
+setwd("/Users/Home/mnt/sasdata/development/kmt")
 
 # load in data
-# nsc college attendance data
-raw.nsc <- read_csv('nsc_all.csv')
-nsc <- raw.nsc
-
-# rename is and year variables
-nsc <- nsc %>% 
-  dplyr::rename(id = RANYCSID,
-                year = YEAR)
-
-# read in school-level data
-# Hope: sch.doe <- read.csv("/Users/Home/Documents/MessyData/finalproj/DOE_schooldata.csv")
-# Kenny: sch.doe <- read_csv("DOE_schooldata.csv")
-
-# rename school column for merging
-sch.doe <- sch.doe %>%
-  rename(mod.sch = DBN)
 
 # doe data
 raw.student <- foreach(year=2013:2019, .combine='rbind.fill') %do% {
@@ -35,6 +20,15 @@ raw.student <- foreach(year=2013:2019, .combine='rbind.fill') %do% {
 
 # assign student-level data to new name
 doe.full <- raw.student
+
+# read in school-level data
+# Hope: 
+sch.doe <- read.csv("/Users/Home/Documents/MessyData/finalproj/DOE_schooldata.csv")
+# Kenny: sch.doe <- read_csv("DOE_schooldata.csv")
+
+# rename school column for merging
+sch.doe <- sch.doe %>%
+  rename(mod.sch = DBN)
 
 # clean the student-level data
 doe.full <- doe.full %>%
@@ -184,10 +178,16 @@ doe.full <- doe.full %>%
   select(-year) %>%
   right_join(doe.full)
 
+# change all NaN values to 0
+doe.full <- doe.full %>% 
+   mutate(mn.days.miss = ifelse(is.nan(mn.days.miss) == T, 0, mn.days.miss),
+          av.per.miss = ifelse(is.nan(av.per.miss) == T, 0, av.per.miss),
+          mn.num.sus = ifelse(is.nan(mn.num.sus) == T, 0, mn.num.sus))
+
 # clean up columns
 doe.simp <- doe.full %>% 
   select(-pov, -hmls, -shlt, -iep, -ell, -abs, -sus, -sus.days, -missed,
-         -per.missed, -dob,-sch.fall, -sch.spr, -status.fall, -status.spr, -frsh, 
+         -per.missed, -dob,-sch.fall, -sch.spr, -status.fall, -status.spr, 
          -birth.yr, -mvd.mid)
 
 # collapsing rows, so that there is only one row per student
@@ -201,17 +201,31 @@ doe.simp <- backup
 
 # add school level columns and nsc first year college columns
 doe.all <- doe.simp %>%
-  left_join(sch.doe) %>% 
-  left_join(nsc)
+  left_join(sch.doe) 
+
+
+# College attendance data:
+
+# load nsc college attendance data
+# raw.nsc <- read_csv('nsc_all.csv')
+# nsc <- raw.nsc
+
+# rename is and year variables
+# nsc <- nsc %>% 
+#   dplyr::rename(id = RANYCSID,
+#                 year = YEAR)
+
+# doe.all <- doe.all %>% 
+# left_join(nsc)
 
 # create college column
-doe.all <- doe.all %>%
-  mutate(college = ifelse((NSCSTRSPR > 1 | NSCSTRSPR > 1), 1, 0)) %>%
+# doe.all <- doe.all %>%
+#   mutate(college = ifelse((NSCSTRSPR > 1 | NSCSTRSPR > 1), 1, 0)) %>%
 
 # filter out students that went to college, but, did not graduate in a NYC DOE school,
 # and did not list their moving with the DOE
-   filter((comp.grades !=2 & college == 1) | is.na(college)) %>%
-   filter(id != "977E041DEE77") %>%
-   filter(id != "6C5ECB1DF612") %>%
-   filter(id != "05396D1EEDC5") %>%
-   filter(id != "046FBDE32012")
+   # filter((comp.grades !=2 & college == 1) | is.na(college)) %>%
+   # filter(id != "977E041DEE77") %>%
+   # filter(id != "6C5ECB1DF612") %>%
+   # filter(id != "05396D1EEDC5") %>%
+   # filter(id != "046FBDE32012")
