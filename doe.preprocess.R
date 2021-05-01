@@ -19,8 +19,8 @@ raw.student <- foreach(year=2013:2019, .combine='rbind.fill') %do% {
   this.data
 }
 
-# assign student-level data to new name
-doe.full <- raw.student
+# load nsc college attendance data
+raw.nsc <- read_csv('nsc_all.csv')
 
 # read in school-level data
 # Hope: 
@@ -28,6 +28,11 @@ doe.full <- raw.student
 # Kenny: 
 sch.doe <- read_csv("/Users/kennymai/Documents/nychomeless/DOE_schooldata.csv")
 
+
+# assign student-level data to new name
+doe.full <- raw.student
+# assign nsc data to new name
+nsc <- raw.nsc
 # rename school column for merging
 sch.doe <- sch.doe %>%
   rename(mod.sch = DBN)
@@ -61,8 +66,8 @@ doe.full <- doe.full %>%
   select(-ELASSC, - MTHSSC) %>% 
   # subset data to grade levels used
   filter(grade == "09" | grade == "10" | grade == "11" | grade == "12") %>%
-  # filter out suspensions listed with more days that school year
-  filter(sus.days < 183 | is.na(sus.days)) %>%
+  # # filter out suspensions listed with more days than school year
+  # filter(sus.days < 183 | is.na(sus.days)) %>%
   # change grades to numeric values
   mutate(grade = as.numeric(grade),
          # recode gender male as 0
@@ -80,11 +85,12 @@ doe.full <- doe.full %>%
          mvd.mid = case_when(sch.fall != sch.spr ~ 1,
                              sch.fall == sch.spr ~ 0)) %>%
 
-# filter out students who were not going to graduate by 2019
+# filter to only keep students who will graduate by or before 2019
   filter((grade == 12 & year == 2019) |
          (grade >= 11 & year == 2018) |
          (grade >= 10 & year == 2017) |
-         (year < 2017))
+         (grade >= 9  & year == 2016) |
+         (year < 2016))
 
 # filter out students who didn't attend 9th grade in a DOE
 doe.full <- doe.full %>%
@@ -220,14 +226,11 @@ doe.simp <- backup
 
 # add school level columns and nsc first year college columns
 doe.all <- doe.simp %>%
-  left_join(sch.doe) 
+  left_join(sch.doe)
 
 
 # College attendance data:
 
-# load nsc college attendance data
-raw.nsc <- read_csv('nsc_all.csv')
-nsc <- raw.nsc
 
 # rename is and year variables
 nsc <- nsc %>% 
@@ -235,7 +238,7 @@ nsc <- nsc %>%
                 year = YEAR)
 
 doe.all <- doe.all %>% 
-  left_join(nsc)
+  left_join(nsc, by = "id")
 
 # create college column
   doe.all <- doe.all %>%
@@ -247,4 +250,13 @@ doe.all <- doe.all %>%
    filter(id != "977E041DEE77") %>%
    filter(id != "6C5ECB1DF612") %>%
    filter(id != "05396D1EEDC5") %>%
-   filter(id != "046FBDE32012")
+   filter(id != "046FBDE32012") %>% 
+    mutate(college = ifelse(is.na(college) == T, 0, college)) %>% 
+    select(-year.y, -NSCSTAFAL, -NSCNAMFAL, -NSCSTRFAL, -NSCSTASPR,
+           -NSCNAMSPR, -NSCSTRSPR, -NSCANYFAL, -NSC4YRFAL, -NSC2YRFAL,
+           -NSCANYSPR, -NSC4YRSPR, -NSC2YRSPR)
+
+  
+  
+  
+  
