@@ -65,6 +65,8 @@ doe.full <- doe.full %>%
   mutate(grade = as.numeric(grade),
          # recode gender male as 0
          gen = ifelse(gen == 2, 0, 1),
+         # recode shelter NAs as 0
+         shlt = ifelse(is.na(shlt), 0, shlt),
          # combine absent days and suspended days as days missing from school
          missed = abs + sus.days,
          # code percentage days absent per year and percent days suspended per year
@@ -77,9 +79,10 @@ doe.full <- doe.full %>%
                              sch.fall == sch.spr ~ 0)) %>%
 
 # filter out students who were not going to graduate by 2019
-  filter(!(grade < 12 & year == 2019) |
-         (grade < 11 & year == 2018) |
-         (grade < 10 & year == 2017))
+  filter((grade == 12 & year == 2019) |
+         (grade >= 11 & year == 2018) |
+         (grade >= 10 & year == 2017) |
+         (year < 2017))
 
 # filter out students who didn't attend 9th grade in a DOE
 doe.full <- doe.full %>%
