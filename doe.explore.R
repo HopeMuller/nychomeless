@@ -1,5 +1,19 @@
 # exploratory analysis for doe homeless high school data
 
+# which schools have a lot of homeless students and how do their graduate rates compare?
+sch <- doe.all %>%
+  select(id, final.sch, sch.pop, final.status, sch.grad) %>%
+  group_by(final.sch) %>%
+  add_count(final.sch, name = "tot.hmls") %>%
+  mutate(hmls.per = tot.hmls/sch.pop) %>%
+  mutate(grad = ifelse(final.status == 2, 1, 0)) %>%
+  mutate(tot.grad = sum(grad),
+         hmls.grad.per = tot.grad/tot.hmls) %>%
+  select(-final.status, - grad, -id) %>%
+  distinct() %>%
+  filter(tot.hmls > 150 | hmls.per > .4) %>%
+  filter(final.sch != "79Q950")
+
 # doe homelessness years of attendance
 doe.full %>%
   group_by(id) %>%
