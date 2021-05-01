@@ -5,9 +5,10 @@ library(foreach)
 library(lubridate)
 
 # setwd to doe folder
-# Kenny: setwd("~/RANYCS/sasdata/development/kmt")
-#Hope: 
-setwd("/Users/Home/mnt/sasdata/development/kmt")
+# Kenny: 
+  setwd("~/RANYCS/sasdata/development/kmt")
+# Hope: 
+# setwd("/Users/Home/mnt/sasdata/development/kmt")
 
 # load in data
 
@@ -23,8 +24,9 @@ doe.full <- raw.student
 
 # read in school-level data
 # Hope: 
-sch.doe <- read.csv("/Users/Home/Documents/MessyData/finalproj/DOE_schooldata.csv")
-# Kenny: sch.doe <- read_csv("DOE_schooldata.csv")
+# sch.doe <- read.csv("/Users/Home/Documents/MessyData/finalproj/DOE_schooldata.csv")
+# Kenny: 
+sch.doe <- read_csv("/Users/kennymai/Documents/nychomeless/DOE_schooldata.csv")
 
 # rename school column for merging
 sch.doe <- sch.doe %>%
@@ -205,6 +207,13 @@ doe.simp <- doe.simp %>%
   group_by(id) %>% 
   filter(year == max(year))
 
+# coding NA ethnicities as 6: unknown or unspecified
+doe.simp$eth <- ifelse(is.na(doe.simp$eth)==T, 6, doe.simp$eth)
+# coding NA home languages as CE: unknown
+doe.simp$hlang <- ifelse(is.na(doe.simp$hlang)==T, "CE", doe.simp$hlang)
+# cosing NA birthplaces as ZZ: not available
+doe.simp$bplace <- ifelse(is.na(doe.simp$bplace)==T, "ZZ", doe.simp$bplace)
+
 # checkpoint, for troubleshooting
 backup <- doe.simp
 doe.simp <- backup
@@ -217,25 +226,25 @@ doe.all <- doe.simp %>%
 # College attendance data:
 
 # load nsc college attendance data
-# raw.nsc <- read_csv('nsc_all.csv')
-# nsc <- raw.nsc
+raw.nsc <- read_csv('nsc_all.csv')
+nsc <- raw.nsc
 
 # rename is and year variables
-# nsc <- nsc %>% 
-#   dplyr::rename(id = RANYCSID,
-#                 year = YEAR)
+nsc <- nsc %>% 
+  dplyr::rename(id = RANYCSID,
+                year = YEAR)
 
-# doe.all <- doe.all %>% 
-# left_join(nsc)
+doe.all <- doe.all %>% 
+  left_join(nsc)
 
 # create college column
-# doe.all <- doe.all %>%
-#   mutate(college = ifelse((NSCSTRSPR > 1 | NSCSTRSPR > 1), 1, 0)) %>%
+  doe.all <- doe.all %>%
+    mutate(college = ifelse((NSCSTRSPR > 1 | NSCSTRSPR > 1), 1, 0)) %>%
 
 # filter out students that went to college, but, did not graduate in a NYC DOE school,
 # and did not list their moving with the DOE
-   # filter((comp.grades !=2 & college == 1) | is.na(college)) %>%
-   # filter(id != "977E041DEE77") %>%
-   # filter(id != "6C5ECB1DF612") %>%
-   # filter(id != "05396D1EEDC5") %>%
-   # filter(id != "046FBDE32012")
+   filter((comp.grades !=2 & college == 1) | is.na(college)) %>%
+   filter(id != "977E041DEE77") %>%
+   filter(id != "6C5ECB1DF612") %>%
+   filter(id != "05396D1EEDC5") %>%
+   filter(id != "046FBDE32012")
