@@ -112,6 +112,13 @@ doe.full <- doe.full %>%
   ungroup() %>% 
   right_join(doe.full)
 
+# create graduation variable
+doe.full <- doe.full %>%
+  group_by(id) %>%
+  mutate(graduate = ifelse(final.status == 2, 1, 0)) %>%
+  ungroup() %>% 
+  right_join(doe.full)
+
 # filter out students whose final status is moving since we don't have the outcome we need
 doe.full <- doe.full %>% 
   filter(final.status != 4)
