@@ -5,10 +5,9 @@ library(foreach)
 library(lubridate)
 
 # setwd to doe folder
-# Kenny: 
-  setwd("~/RANYCS/sasdata/development/kmt")
+# Kenny: setwd("~/RANYCS/sasdata/development/kmt")
 # Hope: 
-# setwd("/Users/Home/mnt/sasdata/development/kmt")
+setwd("/Users/Home/mnt/sasdata/development/kmt")
 
 # load in data
 
@@ -24,10 +23,8 @@ raw.nsc <- read_csv('nsc_all.csv')
 
 # read in school-level data
 # Hope: 
-# sch.doe <- read.csv("/Users/Home/Documents/MessyData/finalproj/DOE_schooldata.csv")
-# Kenny: 
-sch.doe <- read_csv("/Users/kennymai/Documents/nychomeless/DOE_schooldata.csv")
-
+sch.doe <- read.csv("/Users/Home/Documents/MessyData/finalproj/DOE_schooldata.csv")
+# Kenny: sch.doe <- read_csv("/Users/kennymai/Documents/nychomeless/DOE_schooldata.csv")
 
 # assign student-level data to new name
 doe.full <- raw.student
@@ -225,23 +222,21 @@ backup <- doe.simp
 doe.simp <- backup
 
 # add school level columns and nsc first year college columns
-doe.all <- doe.simp %>%
+doe.sch <- doe.simp %>%
   left_join(sch.doe)
 
-
 # College attendance data:
-
 
 # rename is and year variables
 nsc <- nsc %>% 
   dplyr::rename(id = RANYCSID,
                 year = YEAR)
 
-doe.all <- doe.all %>% 
+doe.all <- doe.sch %>% 
   left_join(nsc, by = "id")
 
 # create college column
-  doe.all <- doe.all %>%
+doe.all <- doe.all %>%
     mutate(college = ifelse((NSCSTRSPR > 1 | NSCSTRSPR > 1), 1, 0)) %>%
 
 # filter out students that went to college, but, did not graduate in a NYC DOE school,
