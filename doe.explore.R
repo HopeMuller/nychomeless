@@ -48,7 +48,7 @@ ggplot(data = sch, aes(y = as.numeric(sch.grad), x = as.numeric(hmls.grad.per),
         panel.grid.minor = element_line(colour = "gray", linetype = 'solid', size = .2))
 
 # save plot
-ggsave("gradrates.png", width = 6, height = 3))
+ggsave("gradrates.png", width = 6, height = 3)
 
 # how to graduation rates compare for homeless students of various races?
 
@@ -85,4 +85,4 @@ doe.full %>%
         panel.grid.minor = element_line(colour = "gray", linetype = 'solid', size = .2))
 
 # save plot
-ggsave("race.grad.png", width = 6, height = 3)
+ggsave("race.grad.png", width = 8, height = 3)
