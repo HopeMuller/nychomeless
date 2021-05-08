@@ -58,18 +58,18 @@ doe.full %>%
   filter(eth > 1 & eth < 6) %>%
   mutate(eth = case_when(eth == 5 ~ "White",
                          eth == 2 ~ "Asian or Pacific Islander",
-                         eth == 4 ~ "Hispanic",
-                         eth == 3 ~ "Black"),
+                         eth == 4 ~ "Black",
+                         eth == 3 ~ "Hispanic"),
          graduate = case_when(graduate == 1 ~ "Graduated",
                               graduate == 0 ~ "Didn't Finish")) %>%
-  mutate(eth = factor(eth, levels = c("White", "Asian or Pacific Islander", "Hispanic", "Black")),
+  mutate(eth = factor(eth, levels = c("White", "Asian or Pacific Islander", "Black", "Hispanic")),
          graduate = factor(graduate, levels = c("Graduated", "Didn't Finish"))) %>%
   ggplot(data = ., aes(x = graduate, fill = graduate)) +
   geom_bar(stat = "count", position = "dodge") + 
   facet_wrap(~ eth, nrow = 1, strip.position = "bottom") +
   labs(title ="NYC Homeless Students' Graduation Outcomes, by Race ",
        subtitle = "includes those who started 9th grade in a public school between 2013-2015",
-       x = "Graduation Outcomes as of June 2019, by Race", 
+       x = "Graduation Outcomes, by Race\n(As of June 2019)", 
        y = "Number of Students") +
   scale_fill_manual(values = wes_palette("FantasticFox1", 2)) +
   scale_y_continuous(breaks = seq(0, 14000 , 2000), labels = comma) +
